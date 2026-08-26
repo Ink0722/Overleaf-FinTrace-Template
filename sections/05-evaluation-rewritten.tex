@@ -1,0 +1,349 @@
+\section{实验设计与结果}
+\label{sec:evaluation}
+
+为验证 FinTrace 在长周期对话、工具决策、金融专项研究与可信回答方面的实际能力，本章将赛题要求拆解为六组相互独立的实验。每组实验均明确数据构造、运行流程、评价标准与结果展示方式，并在固定代码、模型、Prompt 和数据快照下重复执行。除特别说明外，所有“实测值”均在正式评测完成后填写，不以开发阶段局部样本代替最终结果。
+
+\subsection{实验设置}
+
+\subsubsection{评测数据与数据划分}
+
+多轮 Agent 实验使用赛题提供的 35 个 Session、1,410 个 Turn。为避免在评测集上反复调整规则与 Prompt，建议以 Session 为单位进行划分：7 个 Session 用作开发集，剩余 28 个 Session 作为冻结测试集；划分时尽量保持会话长度、任务类型和工具需求的分布一致。若赛事后续提供独立隐藏测试集，则本地划分仅用于开发和消融，正式成绩以隐藏测试集为准。
+
+金融专项评测在现有数据基础上构造独立金标集。推荐规模如表~\ref{tab:eval_dataset_design} 所示。若某类真实数据无法满足目标数量，则使用全部可验证样本，并在结果中报告实际样本数，不通过重复样本补足规模。
+
+\begin{table}[htbp]
+    \centering
+    \caption{FinTrace 实验数据集设计}
+    \label{tab:eval_dataset_design}
+    \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}p{0.24\textwidth}p{0.20\textwidth}p{0.46\textwidth}@{}}
+        \toprule
+        实验数据集 & 建议规模 & 构造原则 \\
+        \midrule
+        多轮 Agent 测试集 & 28 Sessions & 保持原始 Turn 顺序，覆盖跨轮指代、期间切换、主题切换与连续研究 \\
+        路由基准集 & 240 Questions & 单工具事实型与多阶段调查型各约一半，人工标注允许调用的 Capability/Tool \\
+        故障注入集 & 120 Cases & 参数错误、必要槽位缺失、Tool 临时失败、Action 校验失败各约 30 例 \\
+        股权关系集 & 约 90 Queries & 一跳、两跳、三层及以上路径尽量分层采样 \\
+        事件时间线集 & 约 80 Queries & 人工标注关键事件、日期、类型与来源文档 \\
+        财务风险集 & $\geq 200$ Company-Periods & 对主要风险类型进行人工或规则复核后形成多标签金标 \\
+        专家盲评集 & 50 Reports & 从综合财务研究任务中分层抽取，隐藏系统内部信息后交由专家评分 \\
+        长上下文压力集 & 240 Runs & 12 个锚点任务 $\times$ 4 个历史长度 $\times$ 5 个事实位置 \\
+        \bottomrule
+    \end{tabular*}
+\end{table}
+
+所有自动评测样本至少保存以下金标字段：\texttt{query}、目标实体、时间条件、Gold Facts、期望 Capability/Tool、允许工具集合、Evidence ID、Answerability 以及必要时的 Gold Path 或 Gold Events。评测脚本只读取冻结金标，不允许在运行中向 Agent 暴露答案信息。
+
+\subsubsection{系统配置与可复现设置}
+
+正式实验前冻结 FinTrace 代码版本，并记录模型、Prompt、索引和运行参数。推荐统一记录表~\ref{tab:runtime_config} 中的配置。
+
+\begin{table}[htbp]
+    \centering
+    \caption{实验运行配置记录项}
+    \label{tab:runtime_config}
+    \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}p{0.29\textwidth}p{0.61\textwidth}@{}}
+        \toprule
+        配置项 & 记录内容 \\
+        \midrule
+        FinTrace 版本 & Git Commit SHA / Release Version \\
+        LLM & 模型名称、API 版本、Temperature、必要的推理参数 \\
+        Prompt & Request Parser、Planner、Evidence Reviewer、Final Answer 等 Prompt 版本 \\
+        Agent 上限 & \texttt{max\_steps}、\texttt{max\_total\_tool\_calls}、Action Repair 上限 \\
+        数据版本 & 标准化数据快照、Document/Chunk 版本、财务/股权/事件索引版本 \\
+        时间约束 & 默认 \texttt{knowledge\_cutoff} 与样本级时间条件 \\
+        运行环境 & CPU、内存、操作系统及必要软件版本 \\
+        \bottomrule
+    \end{tabular*}
+\end{table}
+
+对于随机性可能影响结果的 LLM 调用，正式测试使用固定 Temperature，并在同一配置下运行。若需考察随机波动，可在附加实验中对同一测试集重复运行 3 次，并报告均值与标准差；主要竞赛指标仍以预先规定的一次固定配置运行作为主结果。
+
+\subsubsection{统一判定原则}
+
+实验采用“事实正确 + 工具正确 + 证据可追溯”的联合评价原则。对于可回答问题，若最终回答包含关键事实错误或无证据的重要 Claim，则该样本不能判为完全正确；对于不可回答问题，则不要求模型强行给出实体答案，而检查其是否正确输出 \texttt{clarification\_required}、\texttt{unsupported} 或 \texttt{insufficient\_evidence} 等状态。
+
+\subsection{实验一：长周期多轮 Agent 能力}
+
+\subsubsection{实验目的与流程}
+
+该实验验证 FinTrace 在连续金融研究中的实体继承、时间继承、历史事实记忆与最终回答正确性。测试以 Session 为单位执行，整个 Session 固定同一 \texttt{session\_id}，并严格按照原始 Turn 顺序逐轮回放。
+
+在第 $t$ 轮运行时，Agent 仅允许访问第 $1$ 至 $t-1$ 轮已经产生的会话状态、滚动摘要和 Verified Findings，不得读取任何后续问题或金标。每轮调用完整 \texttt{run\_agent()} 工作流，并保存 \texttt{ParsedRequest}、\texttt{RoutingMode}、Action、ToolResult、Evidence、AnswerStatus 和 FinalAnswer。
+
+评测脚本随后将最终回答与 Gold Facts 对齐。关键事实 Recall 定义为
+\[
+\mathrm{FactRecall}
+=
+\frac{\sum_i |\hat{F}_i\cap F_i|}
+{\sum_i |F_i|},
+\]
+其中 $F_i$ 为第 $i$ 个样本的 Gold Facts，$\hat{F}_i$ 为回答中被正确恢复且得到证据支持的事实集合。
+
+样本级回答准确率采用严格判定：对于可回答样本，要求核心 Gold Facts 均被正确覆盖、无关键事实错误且回答状态合理；对于不可回答样本，则要求输出正确的结构化状态。
+
+\subsubsection{结果展示}
+
+结果按问题类型分别报告，以避免总体平均值掩盖跨轮任务难度。
+
+\begin{table}[htbp]
+    \centering
+    \caption{长周期多轮 Agent 评测结果}
+    \label{tab:multiturn_results}
+    \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccc@{}}
+        \toprule
+        问题类型 & 样本数 & 回答准确率 & 关键事实 Recall \\
+        \midrule
+        单轮事实查询 & -- & -- & -- \\
+        跨轮指代与实体继承 & -- & -- & -- \\
+        跨期间比较 & -- & -- & -- \\
+        主题切换后继续追问 & -- & -- & -- \\
+        多阶段连续研究 & -- & -- & -- \\
+        \midrule
+        总体 & -- & $\geq 90\%$ & $\geq 90\%$ \\
+        \bottomrule
+    \end{tabular*}
+\end{table}
+
+除表格外，还应对错误样本进行 Trace 归因，分别统计请求解析错误、上下文恢复错误、工具错误、证据不足与最终生成错误的占比。
+
+\subsection{实验二：动态路由与受控自纠错}
+
+\subsubsection{动态路由实验}
+
+路由基准集中的每个问题预先标注 \texttt{Expected Capability}、允许工具集合、必要主体与时间参数，并标记 Direct 与 Investigation 中哪些执行方式可接受。评测时运行完整 Agent，并从 Trace 读取实际 Action 和 ToolCall。
+
+一条工具调用只有同时满足以下条件才记为正确：工具属于该样本允许集合；主体、期间等关键参数正确；调用并非无必要重复。Tool Call Precision 定义为
+\[
+\mathrm{ToolPrecision}
+=
+\frac{N_{\mathrm{correct\ calls}}}
+{N_{\mathrm{all\ calls}}}.
+\]
+
+Direct Fast Path 另外报告 Coverage，即实际进入 Direct 路由的样本占全部可路由样本的比例。该指标不追求越高越好，重点是验证其高精度特性。
+
+\begin{table}[htbp]
+    \centering
+    \caption{动态工具路由实验结果}
+    \label{tab:routing_results}
+    \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccc@{}}
+        \toprule
+        路由方式 & Precision & Coverage & 平均 Tool Calls \\
+        \midrule
+        Direct Fast Path & -- & -- & -- \\
+        Investigation & -- & -- & -- \\
+        \midrule
+        Overall & $\geq 92\%$ & -- & -- \\
+        \bottomrule
+    \end{tabular*}
+\end{table}
+
+\subsubsection{故障注入与恢复实验}
+
+自纠错实验不依赖自然发生的偶发错误，而使用故障注入器对正常请求构造可重复故障。具体方式如下：
+
+\begin{table}[htbp]
+    \centering
+    \caption{自纠错实验的故障注入方式}
+    \label{tab:fault_injection_design}
+    \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}p{0.23\textwidth}p{0.48\textwidth}p{0.20\textwidth}@{}}
+        \toprule
+        故障类型 & 注入方法 & 期望恢复动作 \\
+        \midrule
+        参数格式错误 & 将合法日期、列表或枚举参数替换为非法格式 & Action Repair \\
+        必要槽位缺失 & 删除公司、期间、比较对象等必要参数 & Clarification / Replan \\
+        Tool 临时失败 & 第一次调用强制返回 \texttt{retryable=true}，后续恢复正常 & Controlled Retry \\
+        Action 校验失败 & 构造超出 Capability 或违反时间约束的 Action & Repair / Replan \\
+        \bottomrule
+    \end{tabular*}
+\end{table}
+
+恢复成功要求最终结果与同一请求的无故障基线一致，且没有超过系统预设最大调查步数和工具调用上限。恢复率定义为
+\[
+\mathrm{RecoveryRate}
+=
+\frac{N_{\mathrm{successfully\ recovered}}}
+{N_{\mathrm{recoverable\ cases}}}.
+\]
+
+\begin{table}[htbp]
+    \centering
+    \caption{不同故障类型下的恢复结果}
+    \label{tab:recovery_results}
+    \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccc@{}}
+        \toprule
+        故障类型 & 样本数 & 恢复成功率 & 平均额外调用数 \\
+        \midrule
+        参数格式错误 & 30 & -- & -- \\
+        必要槽位缺失 & 30 & -- & -- \\
+        Tool 临时失败 & 30 & -- & -- \\
+        Action 校验失败 & 30 & -- & -- \\
+        \midrule
+        总体 & 120 & $\geq 80\%$ & -- \\
+        \bottomrule
+    \end{tabular*}
+\end{table}
+
+对于数据源无覆盖、系统能力不存在等不可恢复问题，不计入 Recovery Rate，而单独统计是否正确停止调查并返回对应 AnswerStatus。
+
+\subsection{实验三：股权关系与事件研究}
+
+\subsubsection{股权关系实验}
+
+股权金标由经过人工复核的关系数据生成。首先从可验证的关系图中采样起点公司与目标主体，并保存标准路径；随后按一跳、两跳和三层及以上路径分层构造自然语言查询。若真实数据中的三层路径数量不足，则使用全部可验证三层路径并如实报告样本规模。
+
+一条返回路径只有同时满足实体、边方向、关键持股比例、有效时间和 Evidence 来源均与 Gold Path 一致时，才记为端到端正确。除比赛要求的 Path Exact Match 外，可辅助报告 Entity Accuracy 和 Edge Accuracy，以定位错误发生在哪一层。
+
+\begin{table}[htbp]
+    \centering
+    \caption{股权关系分析实验结果}
+    \label{tab:ownership_results}
+    \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccc@{}}
+        \toprule
+        路径复杂度 & 样本数 & Entity Acc. & Path Exact Match & P95 时延 / s \\
+        \midrule
+        一跳关系 & -- & -- & -- & -- \\
+        两跳关系 & -- & -- & -- & -- \\
+        三层及以上路径 & -- & -- & $\geq 85\%$ & -- \\
+        \midrule
+        整体查询与结果组装 & -- & -- & -- & $\leq 5$ \\
+        \bottomrule
+    \end{tabular*}
+\end{table}
+
+\subsubsection{事件时间线实验}
+
+事件金标由人工阅读相关公告及已有事件记录后建立，每个 Gold Event 至少包含 \texttt{event\_id}、事件日期、事件类型、关键实体和来源文档。系统对指定公司与时间区间生成 Timeline 后，将预测事件与 Gold Event 按事件类型、主体和日期进行匹配。
+
+若事件使用明确公告日期，则要求日期精确匹配；若事件语义对应实际发生日期但披露日期存在差异，则在标注阶段预先固定匹配口径，不在评测时临时调整。事件 Recall 定义为正确召回的 Gold Event 占全部 Gold Event 的比例，同时统计事件排序正确率和聚类准确率。
+
+\begin{table}[htbp]
+    \centering
+    \caption{事件时间线实验结果}
+    \label{tab:event_results}
+    \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcc@{}}
+        \toprule
+        指标 & 目标值 & 实测值 \\
+        \midrule
+        关键事件节点 Recall & $\geq 85\%$ & -- \\
+        时间排序正确率 & -- & -- \\
+        事件聚类准确率 & -- & -- \\
+        \bottomrule
+    \end{tabular*}
+\end{table}
+
+\subsection{实验四：财务风险识别与解释}
+
+\subsubsection{风险识别实验}
+
+以公司--报告期为最小样本单位，对利润与经营现金流背离、应收账款异常增长、存货异常积压和偿债压力等风险建立多标签金标。金标由确定性计算结果与人工复核共同形成，避免直接使用待评测系统本身的规则输出作为唯一真值。
+
+对于每一种风险类型分别计算 Precision、Recall 和 F1：
+\[
+P=\frac{TP}{TP+FP}, \qquad
+R=\frac{TP}{TP+FN}, \qquad
+F_1=\frac{2PR}{P+R}.
+\]
+总体指标采用各风险类型 F1 的宏平均值。
+
+\begin{table}[htbp]
+    \centering
+    \caption{不同财务风险类型的识别结果}
+    \label{tab:financial_risk_results}
+    \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccc@{}}
+        \toprule
+        风险类型 & Precision & Recall & F1 \\
+        \midrule
+        利润与经营现金流背离 & -- & -- & -- \\
+        应收账款异常增长 & -- & -- & -- \\
+        存货异常积压 & -- & -- & -- \\
+        偿债压力 & -- & -- & -- \\
+        \midrule
+        Macro Average & -- & -- & $\geq 85\%$ \\
+        \bottomrule
+    \end{tabular*}
+\end{table}
+
+\subsubsection{专家盲评}
+
+从综合财务研究任务中分层抽取 50 份系统报告，去除模型名称、内部状态和实验标签后随机打乱顺序，由 3 名具有金融、会计或相关研究背景的评审者独立评分。每个维度采用 1--5 分制，建议评价事实正确性、证据充分性、跨报表分析完整性和限制说明规范性。
+
+若一份报告四个维度的平均分不低于 4.0，且“事实正确性”平均分不低于 4.0，则判定为“优秀”。专家优秀率定义为优秀报告数量占全部盲评报告的比例；同时报告评审者之间的一致性指标，以避免单一专家偏好主导结果。
+
+\begin{table}[htbp]
+    \centering
+    \caption{财务分析报告专家盲评结果}
+    \label{tab:expert_review_results}
+    \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccc@{}}
+        \toprule
+        评价维度 & 平均得分 & 标准差 & 优秀样本占比 \\
+        \midrule
+        事实正确性 & -- & -- & -- \\
+        证据充分性 & -- & -- & -- \\
+        跨报表分析完整性 & -- & -- & -- \\
+        限制与风险表述规范性 & -- & -- & -- \\
+        \midrule
+        综合评价 & -- & -- & $\geq 80\%$ \\
+        \bottomrule
+    \end{tabular*}
+\end{table}
+
+\subsection{实验五：长上下文压力测试}
+
+\subsubsection{压力集构造}
+
+长上下文实验不采用简单复制无关文本的方式扩展长度，而以真实多轮会话为骨架，在历史中插入经过标注的早期关键事实、相关金融文本、相似公司和相似数值干扰。选择 12 个具有明确 Gold Fact 的锚点任务，对每个任务构造
+\[
+50\mathrm{K},\quad 100\mathrm{K},\quad 200\mathrm{K},\quad 500\mathrm{K}\ \mathrm{Tokens}
+\]
+四档累计历史，并将关键事实分别放置在约 5\%、25\%、50\%、75\% 和 95\% 的历史位置，形成 $12\times4\times5=240$ 个可控测试实例。
+
+每个实例保持最终问题和 Gold Facts 不变，仅改变历史长度与关键事实距离，从而区分“历史更长”和“事实更远”两种因素。干扰文本优先从真实公告、研报和其他公司会话中采样，且不得直接泄露最终答案。
+
+\subsubsection{运行与评价}
+
+测试时仍通过正常 Session Memory 机制逐步写入历史，不直接将构造后的完整文本一次性塞入最终 Prompt。系统记录累计历史 Token 数、实际送入模型的 Prompt Token 数、Fact Recall、Answer Accuracy 和 Tool Call Precision。
+
+正式结果建议至少绘制以下两类曲线：
+
+\begin{itemize}
+    \item 历史 Token 数与 Fact Recall / Answer Accuracy 的关系；
+    \item 累计历史 Token 数与实际 Prompt Token 数的关系。
+\end{itemize}
+
+第一类曲线用于观察长历史性能退化，第二类曲线验证分层记忆是否真正控制了模型上下文规模。
+
+\subsection{实验六：关键机制消融}
+
+消融实验固定同一测试样本、模型、Prompt、数据和运行参数，仅改变一个目标模块。设置：
+
+\begin{itemize}
+    \item \textbf{Full FinTrace：}完整启用分层记忆、Direct/Investigation 路由、专业工具与 Evidence Review；
+    \item \textbf{w/o Structured Memory：}移除结构化 CurrentContext 与 Verified Findings，仅保留近期消息和滚动摘要；
+    \item \textbf{w/o Evidence Review：}保留 ToolResult，但取消 Evidence Gap 驱动的充分性审查及对应 AnswerStatus 约束。
+\end{itemize}
+
+结构化记忆消融在长上下文压力集上评测，重点比较 Fact Recall、Answer Accuracy 和 Tool Precision；Evidence Review 消融在多轮与专项综合研究集上评测，重点统计无证据 Claim 率、错误作答率和过早结束调查比例。
+
+\begin{table}[htbp]
+    \centering
+    \caption{FinTrace 关键机制消融实验}
+    \label{tab:ablation_results}
+    \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccc@{}}
+        \toprule
+        系统版本 & Fact Recall & Answer Accuracy & Tool Precision & 无证据 Claim 率 \\
+        \midrule
+        Full FinTrace & -- & -- & -- & -- \\
+        w/o Structured Memory & -- & -- & -- & -- \\
+        w/o Evidence Review & -- & -- & -- & -- \\
+        \bottomrule
+    \end{tabular*}
+\end{table}
+
+若某项消融导致性能下降，应进一步利用 Trace 判断其主要影响是上下文恢复、工具路由还是最终回答约束，从而避免仅凭总体分数解释模块贡献。
+
+\subsection{结果分析与报告原则}
+
+不同实验分别在所属小节中报告结果，不再将全部指标压缩到一张总表。最终综合分析仅回答三个问题：其一，FinTrace 是否能够在长周期会话中稳定保持主体、时间和关键事实；其二，Direct/Investigation 与专业工具是否达到赛题要求的 Tool Precision、股权路径准确率、事件 Recall、财务风险 F1 和时延指标；其三，结构化记忆与 Evidence Review 是否能够显著降低无依据生成并提升长历史可靠性。
+
+对于未达到目标的指标，应结合 Trace 将失败归因至请求解析、路由决策、工具算法、数据覆盖、Evidence Gap 或最终回答生成，并在后续版本中针对相应模块进行修正。

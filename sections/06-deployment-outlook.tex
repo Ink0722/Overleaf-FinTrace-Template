@@ -1,0 +1,43 @@
+\section{工程落地与展望}
+\label{sec:deployment_outlook}
+
+FinTrace 强调可运行、可复现和可扩展的工程实现。项目采用模块化 Python 架构，将用户入口、Agent Harness、金融工具、数据处理、Prompt、评测和部署相互解耦，使单个模块能够独立测试和替换。
+
+\subsection{工程实现与部署}
+
+\begin{table}[htbp]
+    \centering
+    \caption{FinTrace 主要工程组件}
+    \label{tab:engineering_stack}
+    \begin{tabular}{p{0.24\textwidth}p{0.60\textwidth}}
+        \toprule
+        组件 & 主要用途 \\
+        \midrule
+        LangGraph & Agent 状态流转、条件分支与有界调查 \\
+        Pydantic & 请求、Action、ToolResult、Evidence 等数据契约 \\
+        SQLite / FAISS / BM25 & 结构化查询、向量检索与关键词检索 \\
+        NetworkX & 关系图与路径分析 \\
+        FastAPI / Uvicorn & 标准化 HTTP 服务接口 \\
+        PyMuPDF / python-docx & 公告与报告等文档处理 \\
+        Pytest & 工具、工作流与回归测试 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+系统同时支持本地 CLI 与 FastAPI。CLI 可直接调用核心 \texttt{run\_agent()}，适合开发和现场演示；FastAPI 将同一 Agent 封装为 HTTP 服务，便于 Web 前端或外部应用复用。模型接口采用 OpenAI-compatible 形式封装，Prompt 则按请求解析、动作规划、证据审查、动作修复和最终生成等职责版本化管理。
+
+\subsection{应用与落地可行性}
+
+FinTrace 不依赖重新训练专用金融大模型，而是利用通用模型完成语义理解、调查决策和解释，将财务计算、关系搜索和时间过滤交由确定性工具，因此能够以较低训练成本持续迭代。数据、工具和模型均通过统一 Schema 解耦，后续可逐步替换数据源、Embedding、语言模型或检索索引。
+
+面向个人投资者时，系统可用于公司事实查证、风险线索整理和研究辅助；面向专业场景时，可进一步接入授权金融数据库、内部研究资料和更完整的知识图谱。应用层可以扩展，但核心边界不变：模型负责组织研究过程，关键金融事实必须由工具和 Evidence 支持。
+
+\subsection{局限性与未来工作}
+
+当前系统仍受数据覆盖和研究边界限制。公开主要股东数据不足以独立恢复全部实际控制关系；实时行情、宏观指标与完整新闻舆情仍需外部接口补充；长期记忆和复杂调查策略需要在更大规模真实会话中持续验证；财务风险规则也只能提供进一步核查线索，不能替代审计结论或投资决策。
+
+后续将重点扩展实时金融 API 与新闻舆情、补充非上市主体及控制关系数据、完善跨 Session 长期研究记忆，并加强 Claim-level 自动核验与来源冲突检测。
+
+\subsection{结论}
+
+本文提出\textbf{FinTrace}，一套面向上市公司研究的证据驱动可追溯金融智能体。系统通过可回答性 Gate、确定性快速路径与有界调查，将多源金融数据、专业工具和 Evidence Ledger 组织为可执行、可验证和可审计的研究过程。FinTrace 的目标不是让大模型\textbf{记住更多金融事实}，而是使其\textbf{能够在明确能力边界内选择正确的调查动作，并让最终结论始终受数据、时间和证据约束}。随着评测、实时数据与关系图谱进一步完善，该架构可继续扩展为面向个人投资者和研究人员的可信金融研究辅助系统。

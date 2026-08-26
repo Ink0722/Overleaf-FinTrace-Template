@@ -1,0 +1,71 @@
+\section{实验设计与结果}
+\label{sec:evaluation}
+
+为验证 FinTrace 是否真正改善长周期金融问答、工具路由和专项研究能力，本章按照竞赛量化指标构建分层评测。评测分别考察最终回答、关键事实、工具决策、金融专项任务和异常恢复，使问题能够进一步定位至 Agent、工具或证据链路。
+
+\subsection{实验设置与评测数据}
+
+自然多轮部分使用赛题提供的 35 个 Session、1,410 个 Turn 进行逐轮回放，测试跨轮实体、时间和研究主题保持能力。专项任务从财务报表、股东快照、公告及事件数据构造具有明确金标的样本；长上下文与故障恢复实验则在上述数据基础上生成可控压力集。
+
+自动评测样本保存问题、目标实体、时间条件、Gold Facts、期望能力/工具、Evidence ID 和 Answerability 等标注。综合金融报告采用统一评分表进行盲评，重点检查事实正确性、证据充分性、分析完整性和限制说明。每次评测同时冻结模型与 Prompt 版本、数据与索引版本、Agent 配置和运行环境。
+
+\subsection{完整 Agent 评测}
+
+完整 Agent 主要考察回答准确率、关键事实 Recall、工具调用 Precision 和自纠错成功率。关键事实 Recall 按回答正确恢复的 Gold Facts 比例统计；工具调用 Precision 以实际 Action/ToolCall 与金标研究能力对齐；自纠错成功率仅对预先标记为可恢复的故障计算，且最终结果正确才记为恢复成功。
+
+此外，Direct Fast Path 单独统计 Precision 与 Coverage，以验证确定性快速路径是否真正做到“低覆盖、高精度”；对于 \texttt{clarification\_required}、\texttt{unsupported} 与 \texttt{insufficient\_evidence} 样本，则统计状态判断准确率，避免系统通过无条件回答提高表面覆盖率。
+
+\subsection{金融专项能力评测}
+
+股权分析使用端到端路径准确率：只有路径主体、边方向、关键比例和 Evidence 均正确时才记为正确，三层及以上路径单独统计。事件时间线依据人工标注关键节点计算 Recall，并允许同一事件的多篇披露材料归并至同一事件簇。工具性能在固定硬件和本地索引条件下重复运行，记录平均、P95 与最大时延。
+
+财务风险评测将确定性规则输出与人工金标比较，对利润与现金流背离、应收异常、存货异常和偿债压力等风险类型计算 Precision、Recall 与宏平均 F1。风险标签只表示“是否应触发进一步核查”，不把主观投资判断或造假认定混入确定性指标。最终解释报告再由具有金融或会计背景的评审者进行盲评。
+
+\subsection{长上下文与鲁棒性实验}
+
+长历史压力集将相同关键事实置于不同长度的会话中，并加入相似公司、无关数字和话题切换等干扰。累计历史规模设置为
+\[
+50\mathrm{K},\quad 100\mathrm{K},\quad 200\mathrm{K},\quad 500\mathrm{K}\ \mathrm{Tokens},
+\]
+分别统计关键事实 Recall、回答准确率和路由稳定性，以验证“近期窗口 + 结构化状态 + 摘要 + Verified Findings”的分层记忆是否能够随历史增长保持有效。
+
+鲁棒性实验主动注入缺失参数、非法 Action、工具临时失败、索引不可用、检索无结果和证据不足等故障。系统应只对可恢复错误执行有限修复或重新规划，对不可恢复错误及时停止并给出正确 Answer Status。除 Recovery Rate 外，还统计错误状态判断准确率和平均额外工具调用次数。
+
+\subsection{消融实验}
+
+为验证关键机制的实际贡献，设置三个版本：
+
+\begin{itemize}
+    \item \textbf{Full FinTrace：}启用分层记忆、Direct/Investigation 路由、专业工具和 Evidence Review；
+    \item \textbf{w/o Structured Memory：}移除结构化上下文与 Verified Findings，仅保留近期对话和摘要；
+    \item \textbf{w/o Evidence Review：}保留工具结果，但取消 Evidence Gap 驱动的充分性审查与回答状态约束。
+\end{itemize}
+
+前者主要观察长上下文 Fact Recall 与路由稳定性，后者重点比较无证据 Claim、错误作答和过早结束调查的比例，从而判断性能提升是否真正来自 FinTrace 的记忆与证据机制。
+
+\subsection{实验结果与分析}
+
+正式实验完成后，核心指标统一汇总至表~\ref{tab:overall_results}。实测值仅填写固定代码版本、固定数据快照和完整评测流程产生的结果，不以开发阶段局部样本替代正式结果。
+
+\begin{table}[htbp]
+    \centering
+    \caption{FinTrace 主要评测指标}
+    \label{tab:overall_results}
+    \begin{tabular}{lcc}
+        \toprule
+        指标 & 目标值 & 实测值 \\
+        \midrule
+        回答准确率 & $\geq 90\%$ & -- \\
+        关键事实 Recall & $\geq 90\%$ & -- \\
+        工具调用 Precision & $\geq 92\%$ & -- \\
+        自纠错成功率 & $\geq 80\%$ & -- \\
+        三层及以上股权路径准确率 & $\geq 85\%$ & -- \\
+        关键事件节点 Recall & $\geq 85\%$ & -- \\
+        股权查询及结果组装时延 & $\leq 5\,\mathrm{s}$ & -- \\
+        财务风险宏平均 F1 & $\geq 85\%$ & -- \\
+        专家盲评优秀率 & $\geq 80\%$ & -- \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+最终报告除总体指标外，还应展示关键事实 Recall 随历史 Token 数变化的曲线、完整系统与消融版本对比，以及典型失败案例的 Trace 归因。对于未达目标的指标，应明确区分数据覆盖、请求解析、路由、工具算法、Evidence Gap 与回答生成问题。

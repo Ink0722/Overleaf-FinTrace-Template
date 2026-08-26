@@ -1,0 +1,72 @@
+\section{核心金融研究能力及其工具化实现}
+\label{sec:financial_research}
+
+FinTrace 将上市公司研究中的复杂任务拆解为若干可独立验证的专业能力。系统先对金融数据进行标准化表示，再由确定性工具完成检索、计算、关系查询和事件组织，最后将结构化结果与 Evidence 返回 Agent。由此，大模型主要承担研究意图理解和跨工具综合，而事实提取与精确计算仍由程序完成。
+
+\subsection{金融数据底座与统一表示}
+
+公告与研报等非结构化文本统一构建为 Document，并进一步切分为可追溯 Chunk；财务报表与股东快照则保留结构化字段。不同数据通过统一证券主体、日期语义和 Evidence 协议进入工具层。
+
+\begin{center}
+\texttt{Raw Data}
+$\rightarrow$
+\texttt{Normalized Data}
+$\rightarrow$
+\texttt{Document / Structured Facts}
+$\rightarrow$
+\texttt{Index}
+$\rightarrow$
+\texttt{Financial Tools}
+\end{center}
+
+Document 保存文档类型、公司标识、标题、发布日期、正文和来源定位；Chunk 保留 \texttt{document\_id}、章节语义与字符偏移，使检索结果能够反向定位原始材料。结构化数据则按公司、报告期、观察日期和信息截止日期执行精确查询。
+
+\begin{table}[htbp]
+    \centering
+    \caption{数据、工具与研究任务映射}
+    \label{tab:data_tool_mapping}
+    \begin{tabular}{p{0.20\textwidth}p{0.23\textwidth}p{0.45\textwidth}}
+        \toprule
+        数据类型 & 核心工具 & 主要研究任务 \\
+        \midrule
+        公告与研报 & Document Search & 原文检索、监管事项和机构观点查证 \\
+        公告及事件数据 & Event Timeline & 事件筛选、聚类、排序与演化重构 \\
+        三张财务报表 & Financial Analysis & 指标查询、跨期比较、跨表勾稽与风险识别 \\
+        股东快照与关系数据 & Ownership Analysis & 股东查询、持股变化、集中度与关系研究 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{文档检索与事件研究}
+
+\texttt{document\_search} 面向公告和研报执行公司、文档类型和日期过滤，并组合 BM25 与向量检索。BM25 保证公司名、财务术语和监管文件等精确词项的稳定召回，向量检索补充语义相近表达；Hybrid 模式融合两路候选，并限制单篇文档重复返回过多 Chunk。每个命中片段均转换为带原始来源定位的 Evidence。
+
+\texttt{event\_timeline} 用于回答“某家公司一段时间内发生了什么”。工具按公司、事件类型和时间过滤记录，并对相近事件进行聚类和排序，使研究由单篇公告检索扩展为事件序列重构，适用于监管处罚、重大事项变化和持续风险跟踪等任务。
+
+\subsection{财务分析与风险识别}
+
+财务任务具有明确的数值和期间约束。FinTrace 将指标读取、同比/跨期比较、跨表勾稽和风险规则封装为 \texttt{financial\_analysis}，避免让大模型直接从长报表中抄数并心算。工具以统一指标目录连接资产负债表、利润表和现金流量表，并校验累计口径指标的期间可比性。
+
+在风险研究中，系统可联合观察营业收入、净利润、经营现金流、应收账款、存货和负债等指标，识别利润与现金流背离、应收或存货异常扩张及偿债压力等风险信号。风险信号仅作为进一步查证的触发器，并不直接等价于财务造假或投资结论；Agent 可继续调用 Document Search 查找审计意见、监管问询或公司解释进行交叉验证。
+
+\subsection{股权关系与穿透分析}
+
+\texttt{ownership\_analysis} 将主要股东快照组织为时序关系数据，可按观察时点查询主要股东、反查股东持有的上市公司，并比较不同快照之间的进入、退出、增持和减持。对于数据中能够可靠连接的主体，可进一步在增强关系图中执行有限深度路径搜索，并要求每一跳关系均绑定对应 Evidence。
+
+股权分析始终显式保留数据边界。主要股东快照不能天然证明完整实际控制关系，非主要股东、非上市主体、协议控制和一致行动关系需要额外数据补充，因此系统只对现有证据能够支持的路径做出陈述。
+
+\subsection{多工具协同研究}
+
+FinTrace 的核心能力不是四个孤立接口，而是根据 Evidence Gap 逐步组合工具。例如综合风险研究可以先由 Financial Analysis 发现异常，再通过 Document Search 查证相关披露，使用 Event Timeline 重构事件演化，并在必要时调用 Ownership Analysis 检查股东变化。
+
+\begin{center}
+\texttt{Plan Next Action}
+$\rightarrow$
+\texttt{Retrieve / Calculate / Trace}
+$\rightarrow$
+\texttt{Evidence Review}
+$\rightarrow$
+\texttt{Next Action or Conclusion}
+\end{center}
+
+这种模式将传统 RAG 的“检索文本—生成答案”扩展为证据驱动的连续调查：每一步动作由当前问题与已有证据共同决定，直到关键方面被覆盖或系统确认剩余缺口无法可靠补足。

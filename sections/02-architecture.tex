@@ -1,0 +1,61 @@
+\section{FinTrace 智能体架构与执行机制}
+\label{sec:architecture}
+
+\subsection{总体技术架构}
+
+FinTrace 采用“\textbf{LangGraph 确定性编排骨架 + Direct Fast Path + Evidence-guided Bounded Investigation}”的混合架构。系统不让多个大模型角色自由协商，而是由单一主 Agent 负责复杂语义判断和下一步调查决策，将检索、计算、图搜索、时间过滤和停止条件交给确定性程序。
+
+\begin{table}[htbp]
+    \centering
+    \caption{FinTrace 总体架构分层}
+    \label{tab:architecture_layers}
+    \begin{tabular}{p{0.18\textwidth}p{0.72\textwidth}}
+        \toprule
+        层次 & 主要职责 \\
+        \midrule
+        交互层 & 通过 CLI、FastAPI 及后续 Web 界面接收问题并返回回答与 Trace。 \\
+        Agent Harness & 会话恢复、请求解析、可回答性判断、路由、动作校验、有界调查、证据审查与回答生成。 \\
+        金融工具层 & 提供文档检索、财务分析、股权分析和事件时间线等可独立测试能力。 \\
+        数据与索引层 & 管理标准化金融数据、Document/Chunk、SQLite、FAISS 与 BM25 索引。 \\
+        可信机制 & Evidence Ledger、时间约束、结构化状态、Trace 与 Evaluation 贯穿完整链路。 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+这种分层使大模型、工具和数据保持松耦合。只要遵守统一 Schema，底层数据源、检索器或模型均可独立替换，而无需重构整个 Agent 工作流。
+
+\subsection{从请求解析到有界调查}
+
+FinTrace 的端到端执行链路如下：
+
+\begin{center}
+\texttt{Load Session}
+$\rightarrow$
+\texttt{Resolve Request}
+$\rightarrow$
+\texttt{Pre-Answerability}
+$\rightarrow$
+\texttt{Route Mode}
+$\rightarrow$
+\texttt{Action}
+$\rightarrow$
+\texttt{Tool}
+$\rightarrow$
+\texttt{Evidence Review}
+$\rightarrow$
+\texttt{Answer / Continue}
+\end{center}
+
+首先，系统从 Session 中恢复近期对话、结构化上下文和已验证发现，并将自然语言请求解析为主体、人物、期间、指标、任务类型和约束。该阶段只负责回答“用户在问什么”，不直接选择工具。
+
+随后执行 Pre-Answerability 判断，将请求分为三类：必要槽位缺失时返回 \texttt{clarification\_required}；当前系统不存在相应工具、数据源或权限时返回 \texttt{unsupported}；其余请求进入路由。对于唯一、参数完整且几乎无歧义的事实型任务，Direct Gate 直接构造确定性 Action；复杂研判则进入 Investigation，由 Planner 根据现有 Evidence 和尚未覆盖的研究方面选择下一步最有价值的动作。
+
+每个 Action 在执行前都要经过参数、能力范围、时间截止和重复调用等校验。工具执行完成后，结果中的 Evidence 合并进入 Evidence Ledger，再由 Evidence Review 判断当前状态是 \texttt{sufficient}、\texttt{partial} 还是 \texttt{insufficient}。若证据缺口仍可通过已有能力补足，系统继续规划下一步；否则进入部分回答或证据不足状态。工作流同时设置最大调查步数和总工具调用上限，使自主调查始终可终止。
+
+\subsection{长周期记忆、动态路由与受控自纠错}
+
+长周期研究采用四层记忆：近期原始消息用于解析局部指代；结构化 \texttt{CurrentContext} 保存当前公司、人物、期间、主题和比较对象；滚动摘要压缩较早对话；经过工具证据验证的历史发现进入 Verified Findings。只有具备 Evidence 支持的事实才能写入长期已验证记忆，模型猜测和失败结果不会被固化。
+
+因此，累计达到 $0.5$M Tokens 的历史并不意味着每轮将全部文本重新输入模型。系统仅检索当前任务需要的近期窗口、结构化状态、摘要和已验证事实，以控制上下文成本并减少无关信息干扰。
+
+动态路由也从“关键词选工具”升级为“能力边界内的调查决策”。简单请求优先走高精度 Direct Gate；复杂请求由 Planner 逐步选择动作，并利用 Evidence Gap 决定是否继续调查。若动作参数不合法，可进入有限修复或重新规划；工具临时失败可在既定边界内重试；不可恢复的数据缺失和能力缺口则停止继续猜测。原始动作、校验错误、修复、工具结果、证据缺口和终止原因均写入 Trace，为后续工具调用 Precision 和自纠错评测提供直接依据。
