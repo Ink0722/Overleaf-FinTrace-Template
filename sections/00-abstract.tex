@@ -1,18 +1,20 @@
+\fintraceabstractheader
+\begin{fintraceabstractpanel}
 \begin{abstract}
 
 大语言模型为上市公司研究提供了新的自动化路径，但现有金融智能体仍面临长周期对话中的上下文漂移、多源异构数据难以协同、生成结论缺乏证据约束等问题。本文设计并实现 \textbf{FinTrace：}面向上市公司研究的证据驱动可追溯金融智能体，将金融研究任务转化为可规划、可执行、可校验和可追溯的结构化过程。其主要技术创新包括：
 
-\begin{itemize}
-    \item {\heiti 证据驱动的研究--验证--生成闭环：}
+\begin{itemize}[leftmargin=6mm,label=\textcolor{FinOrange}{\raisebox{.12ex}{\large$\bullet$}},itemsep=5pt,topsep=5pt]
+    \item \fintraceabstractitemtitle{证据驱动的研究--验证--生成闭环：}
     将证据作为核心数据对象，通过统一证据协议关联数据来源、工具结果和最终结论，并在生成前执行证据充分性校验，实现结论可追溯与证据不足时的结构化拒答。
 
-    \item {\heiti 可控的金融 Agent Harness：}
+    \item \fintraceabstractitemtitle{可控的金融 Agent Harness：}
     采用``单一主 Agent + 专业确定性工具''架构，基于 LangGraph 组织任务规划、参数校验、工具执行、结果验证和受控重试，并通过 Schema 约束工具输入输出，提高复杂任务执行的稳定性与可审计性。
 
-    \item {\heiti 多源时序证据体系：}
+    \item \fintraceabstractitemtitle{多源时序证据体系：}
     将公告、研报等文本构建为可追溯知识库，并与财务报表、股权快照等结构化数据协同；引入统一时间约束研究时点，避免信息泄漏。
 
-    \item {\heiti 多工具组合式公司研究：}
+    \item \fintraceabstractitemtitle{多工具组合式公司研究：}
     构建文档检索、财务分析、股权分析和事件因果分析等工具供动态规划组合调用，支持跨报表风险分析、股权穿透、事件演化及证据交叉验证。
 \end{itemize}
 
@@ -21,3 +23,4 @@ FinTrace 采用模块化数据管线、Pydantic 数据契约、FAISS/SQLite 索�
 \keywords{金融智能体，上市公司研究，证据驱动，可追溯生成，Agentic AI，工具调用}
 
 \end{abstract}
+\end{fintraceabstractpanel}

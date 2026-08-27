@@ -1,0 +1,153 @@
+\ProvidesPackage{fintrace-whitepaper}[2026/08/27 FinTrace color and page identity]
+% The ElegantPaper class remains the sole owner of body fonts, title hierarchy,
+% lists, captions, tables and spacing.  This package only adds FinTrace colors
+% and a restrained page identity.
+\RequirePackage{fancyhdr}
+\RequirePackage{extramarks}
+\RequirePackage{sectsty}
+\RequirePackage{needspace}
+\RequirePackage[most]{tcolorbox}
+\RequirePackage{eso-pic}
+\definecolor{FinNavy}{HTML}{075F96}
+\definecolor{FinTeal}{HTML}{078B98}
+\definecolor{FinOrange}{HTML}{FF8500}
+\definecolor{FinRed}{HTML}{FA3B1B}
+\definecolor{FinInk}{HTML}{17212B}
+\definecolor{FinMuted}{HTML}{5E6B76}
+\definecolor{FinPaper}{HTML}{FDFBFA}
+\definecolor{FinHeadingBlue}{HTML}{075F96}
+\definecolor{FinSubBlue}{HTML}{294F61}
+\definecolor{FinSubInk}{HTML}{3D474F}
+\definecolor{FinSoftOrange}{HTML}{D96F12}
+\colorlet{winered}{FinTeal}
+\hypersetup{linkcolor=FinNavy,urlcolor=FinTeal,citecolor=FinNavy}
+\sectionfont{\normalfont\bfseries\heiti\color{FinHeadingBlue}}
+\subsectionfont{\normalfont\kaishu\color{FinSubBlue}}
+\subsubsectionfont{\normalfont\fangsong\color{FinSubInk}}
+\geometry{left=24mm,right=24mm,top=37mm,bottom=37mm,headheight=15.3mm,headsep=6mm,footskip=13mm}
+\newcommand{\fintracerulewidth}{.6pt}
+\newcommand{\fintraceheaderlogo}{%
+  \raisebox{-1.8mm}{\includegraphics[width=36mm]{fintrace-header.png}}}
+\newcommand{\fintraceheadrule}{%
+  \hbox to\headwidth{%
+    \tikz[baseline]{\shade[left color=FinTeal,right color=FinOrange]
+      (0pt,0pt) rectangle (\headwidth,\fintracerulewidth);}\hss}}
+\newcommand{\fintracefooter}{%
+  \hbox to\headwidth{%
+    \raisebox{.45ex}{\tikz[baseline]{\shade[left color=FinTeal,right color=FinNavy]
+      (0pt,0pt) rectangle (.465\headwidth,\fintracerulewidth);}}\hfill
+    {\color{FinNavy}\sffamily\scriptsize\bfseries\thepage}\hfill
+    \raisebox{.45ex}{\tikz[baseline]{\shade[left color=FinNavy,right color=FinOrange]
+      (0pt,0pt) rectangle (.465\headwidth,\fintracerulewidth);}}}}
+\newcommand{\fintracecurrentmark}{%
+  \ifthenelse{\equal{\firstleftmark}{}}{\leftmark}{\firstleftmark}}
+\fancypagestyle{fintrace}{%
+  \fancyhf{}
+  \fancyhead[L]{\fintraceheaderlogo}
+  \fancyhead[R]{\small\color{FinMuted}\nouppercase{\fintracecurrentmark}}
+  \fancyfoot[C]{\footnotesize\fintracefooter}
+  \renewcommand{\headrulewidth}{\fintracerulewidth}
+  \renewcommand{\headrule}{\fintraceheadrule}
+  \renewcommand{\footrulewidth}{0pt}}
+\fancypagestyle{plain}{%
+  \fancyhf{}
+  \fancyhead[L]{\fintraceheaderlogo}
+  \fancyhead[R]{\small\color{FinMuted}\nouppercase{\fintracecurrentmark}}
+  \fancyfoot[C]{\footnotesize\fintracefooter}
+  \renewcommand{\headrulewidth}{\fintracerulewidth}
+  \renewcommand{\headrule}{\fintraceheadrule}
+  \renewcommand{\footrulewidth}{0pt}}
+\fancypagestyle{fintracetoc}{%
+  \fancyhf{}
+  \fancyhead[L]{\fintraceheaderlogo}
+  \fancyhead[R]{\small\color{FinMuted}\contentsname}
+  \fancyfoot[C]{\footnotesize\fintracefooter}
+  \renewcommand{\headrulewidth}{\fintracerulewidth}
+  \renewcommand{\headrule}{\fintraceheadrule}
+  \renewcommand{\footrulewidth}{0pt}}
+\fancypagestyle{fintracefront}{%
+  \fancyhf{}
+  \fancyfoot[C]{\footnotesize\fintracefooter}
+  \renewcommand{\headrulewidth}{0pt}
+  \renewcommand{\footrulewidth}{0pt}}
+\pagestyle{fintrace}
+\pretocmd{\section}{\needspace{6\baselineskip}}{}{}
+\makeatletter
+\renewcommand{\@seccntformat}[1]{%
+  \ifstrequal{#1}{section}{%
+    \textcolor{FinOrange}{\csname the#1\endcsname}}{%
+    \ifstrequal{#1}{subsection}{%
+      \textcolor{FinTeal}{\csname the#1\endcsname}}{%
+      \ifstrequal{#1}{subsubsection}{%
+        \textcolor{FinSoftOrange}{\csname the#1\endcsname}}{%
+        \csname the#1\endcsname}}}\quad}
+\makeatother
+\renewcommand{\abstractname}{%
+  摘要\par\vspace{3mm}%
+  \tikz[baseline]{%
+    \fill[FinOrange] (0pt,0pt) rectangle (11mm,.8pt);
+    \fill[FinTeal] (13mm,0pt) rectangle (34mm,.8pt);}}
+\renewcommand{\abstractnamefont}{\normalfont\Large\bfseries\heiti\color{FinNavy}}
+\renewcommand{\abstracttextfont}{\small\normalfont\fangsong\color{FinInk}\noindent\ignorespaces}
+\setlength{\abstitleskip}{-1.1em}
+\newcommand{\fintraceabstractitemtitle}[1]{{\kaishu\bfseries\color{FinNavy}#1}}
+\renewcommand{\keywords}[1]{%
+  \par\vspace{7mm}%
+  \noindent\begin{tikzpicture}
+    \fill[FinOrange] (0pt,0pt) rectangle (9mm,.6pt);
+    \fill[FinTeal] (10mm,0pt) rectangle (22mm,.6pt);
+  \end{tikzpicture}%
+  \par\vspace{3mm}\noindent
+  {\heiti\bfseries\color{FinOrange}关键词}\hspace{1.5em}%
+  {\normalfont\color{FinMuted}#1}}
+\makeatletter
+\renewcommand{\tableofcontents}{%
+  \thispagestyle{fintracetoc}%
+  \markboth{\contentsname}{\contentsname}%
+  \vspace*{4mm}%
+  \section*{\centering\contentsname}%
+  \vspace{6mm}%
+  \@starttoc{toc}}
+\makeatother
+\newtcolorbox{fintraceabstractpanel}{%
+  enhanced,
+  breakable,
+  colback=FinPaper,
+  colframe=FinPaper,
+  boxrule=0pt,
+  arc=0pt,
+  outer arc=0pt,
+  left=0mm,
+  right=0mm,
+  top=0mm,
+  bottom=0mm,
+  before skip=8mm,
+  after skip=0pt}
+\newcommand{\fintracecover}{%
+  \begin{titlepage}\thispagestyle{empty}\pagecolor{FinPaper}\color{FinInk}
+  \vspace*{1.0cm}
+  \noindent{\color{FinTeal}\rule{.68\textwidth}{1.5pt}}\hfill
+  {\color{FinOrange}\rule{.28\textwidth}{1.5pt}}\par
+  \vfill
+  \begin{center}
+  \includegraphics[width=.56\textwidth]{fintrace-brand-lockup-transparent.png}\par
+  \vspace{1.85cm}
+  \begin{minipage}{.88\textwidth}\centering
+  {\fontsize{27}{39}\selectfont\bfseries 面向上市公司证据驱动研究的\par\vspace{.38cm}
+  {\color{FinNavy}可追溯金融智能体}\par}
+  \end{minipage}\par
+  \vspace{1.05cm}
+  {\color{FinOrange}\rule{13mm}{1.2pt}}\hspace{2mm}
+  {\color{FinTeal}\rule{34mm}{1.2pt}}
+  \end{center}
+  \vfill
+  \noindent{\color{FinOrange}\rule{.28\textwidth}{1.5pt}}\hfill
+  {\color{FinTeal}\rule{.68\textwidth}{1.5pt}}\par\vspace{.7cm}
+  \begin{center}
+    {\Large\bfseries\color{FinInk}深藏 Blue 队}\par\vspace{.22cm}
+    {\large\color{FinMuted}2026 年中国研究生金融科技创新大赛参赛作品}\par\vspace{.52cm}
+    {\normalsize\color{FinMuted}版本 1.0\quad\textcolor{FinOrange}{|}\quad 2026.08}
+  \end{center}
+  \end{titlepage}\pagecolor{FinPaper}}
+\newcommand{\fintraceabstractheader}{%
+  \thispagestyle{fintrace}\markboth{摘要}{摘要}\vspace*{10mm}}
