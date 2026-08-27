@@ -1,113 +1,144 @@
 \section{可信回答与全链路可追溯机制}
 \label{sec:traceability}
 
-FinTrace 面向金融研究场景对回答的可靠性、时效性和可验证性提出了更严格的要求。金融问题的回答通常不仅涉及某一项数据的查询，还可能同时涉及财务指标、股东关系、公告事件和研究观点等不同类型的信息。如果仅依赖大语言模型根据已有知识直接生成结论，即使回答在语言层面完整，也难以保证信息来源、数据时点以及结论与事实之间的对应关系。因此，FinTrace 将证据管理和过程追踪作为 Agent 工作流的基础能力，将原始数据、工具执行、证据形成、结论生成以及运行过程纳入统一的可信机制中。
+金融领域的智能 Agent 不仅需要具备信息检索、数据分析和自然语言生成能力，还需要保证回答所依据的信息真实可查、符合研究时点，并能够解释结论形成的过程。对于财务数据、股权关系、重大事件和研究观点等金融信息而言，数据来源、有效时间以及证据与结论之间的对应关系都会直接影响分析结果的可靠性。因此，FinTrace 将可信回答能力嵌入 Agent 的完整执行流程，而不是将其作为最终答案生成阶段的附加功能。
+
+FinTrace 以 Evidence 为核心组织金融研究过程中的事实信息，并通过 Evidence Ledger 对不同工具产生的证据进行统一管理；通过 as\_of\_date 和 knowledge\_cutoff 对研究时点和信息可得范围进行约束；通过 Evidence Review 判断当前证据是否已经足以支撑用户请求，并利用 Evidence-to-Claim 建立证据与最终结论之间的对应关系。在此基础上，系统进一步记录从用户请求、任务解析、Agent 决策、工具调用、证据形成到最终回答的完整 Trace，使每一次研究任务都能够形成可检查、可复核的执行记录。
+
+因此，FinTrace 所强调的可信并不是简单地为回答增加引用，而是将“信息从哪里来、在什么时候可以使用、能够支撑什么结论以及最终答案如何形成”统一纳入系统运行机制之中。其核心原则可以概括为：大模型负责组织调查过程，确定性工具负责获取和计算事实，证据负责约束最终结论，Trace 负责记录全过程。
 
 \subsection{统一证据对象与 Evidence Ledger}
 
-每条 \texttt{Evidence} 具有唯一 \texttt{evidence\_id}，保存证据类型、来源、结构化事实、支持强度和使用关系。其核心字段如表~\ref{tab:evidence_schema} 所示。
+FinTrace 将 Evidence 定义为 Agent 执行过程中的结构化证据对象，而不是传统检索增强系统中仅供模型阅读的文本片段。在一次金融研究任务中，财务指标、股东关系、公司事件以及文档内容可能来自不同的数据源和不同的工具，如果直接将这些结果交由大语言模型处理，后续很难准确判断某一结论究竟由哪一项信息支撑。为解决这一问题，FinTrace 对不同工具产生的信息进行统一封装，并通过唯一的 evidence\_id 对每条证据进行标识。
+
+Evidence 对象包含证据类型、来源、结构化事实以及支持强度等信息。不同来源的信息经过工具处理后，被转换为统一的证据形式，并进入 Evidence Ledger。系统目前能够处理文档、财务事实、持股关系和事件等类型的 Evidence，同时保留相应的来源定位信息，使结构化数据和非结构化文档都能够进入统一的证据体系。
+
+Evidence Ledger 则承担一次研究任务中的证据汇总和状态管理功能。对于简单查询，Ledger 可以保存当前问题直接需要的事实；对于需要多轮调查的复杂问题，不同工具在不同阶段产生的 Evidence 可以持续累积，使 Agent 能够根据已有证据判断当前已经掌握的信息以及仍然存在的缺口。Evidence 与产生它的工具动作之间通过 used\_by 等关系进行关联，从而保证证据不仅能够被使用，还能够被追踪。
+
+每条 Evidence 具有唯一 evidence\_id，保存证据类型、来源、结构化事实、支持强度和使用关系。其核心字段如表~\ref{tab:evidence_schema} 所示。
+
+工具执行后，Evidence 按 evidence\_id 合并进入 Evidence Ledger。原始来源、工具结果和自然语言 Claim 因而形成：
+
+Source  $\rightarrow$  Tool Result  $\rightarrow$  Evidence  $\rightarrow$  Evidence Ledger  $\rightarrow$  Claim
+
+在这一过程中，Evidence 成为了连接数据和回答的中间层。最终结论不再直接建立在模型对原始检索结果的自由解释之上，而是建立在经过工具处理并被系统记录的结构化证据之上。
 
 \begin{table}[htbp]
-    \centering
-    \caption{Evidence 核心字段}
-    \label{tab:evidence_schema}
-    \begin{tabular}{p{0.20\textwidth}p{0.68\textwidth}}
-        \toprule
-        字段 & 含义 \\
-        \midrule
-        \texttt{evidence\_id} & 唯一证据标识，用于回答引用、日志与评测对齐 \\
-        \texttt{evidence\_type} & 文档、财务事实、持股关系、事件等证据类型 \\
-        \texttt{source} & Document、公司、页码/行号或数据路径等来源定位 \\
-        \texttt{fact} & 工具提取、查询或确定性计算得到的结构化事实 \\
-        \texttt{support\_level} & \texttt{direct}、\texttt{derived} 或 \texttt{weak} 支持强度 \\
-        \texttt{used\_by} & 记录产生或使用该证据的工具动作 \\
-        \bottomrule
-    \end{tabular}
+  \centering
+  \caption{Evidence 核心字段}
+  \label{tab:evidence_schema}
+  \begin{tabular}{p{.23\textwidth}p{.67\textwidth}}
+    \toprule
+    字段 & 含义 \\
+    \midrule
+    evidence\_id & 唯一证据标识，用于回答引用、日志与评测对齐 \\
+    evidence\_type & 文档、财务事实、持股关系、事件等证据类型 \\
+    source & Document、公司、页码/行号或数据路径等来源定位 \\
+    fact & 工具提取、查询或确定性计算得到的结构化事实 \\
+    support\_level & direct、derived 或 weak 支持强度 \\
+    used\_by & 记录产生或使用该证据的工具动作 \\
+    \bottomrule
+  \end{tabular}
 \end{table}
-
-工具执行后，Evidence 按 \texttt{evidence\_id} 合并进入 Evidence Ledger。原始来源、工具结果和自然语言 Claim 因而形成：
-
-\begin{center}
-\texttt{Source}
-$\rightarrow$
-\texttt{Tool Result}
-$\rightarrow$
-\texttt{Evidence}
-$\rightarrow$
-\texttt{Evidence Ledger}
-$\rightarrow$
-\texttt{Claim}
-\end{center}
 
 \subsection{金融信息的时间一致性约束}
 
-金融研究必须区分“研究哪个时点”和“当时已经知道什么”。FinTrace 使用两个互补时间变量：
+金融数据具有明显的时间属性。同一家公司在不同时间点的财务状态、股东结构和重大事件可能完全不同，而研究人员在历史时点进行分析时能够获得的信息，也不等于今天数据库中能够查询到的全部信息。因此，金融智能 Agent 如果缺少明确的时间边界，就可能在历史分析中使用研究时点之后才公开的数据，从而产生前视偏差。
 
-\begin{itemize}
-    \item \textbf{\texttt{as\_of\_date}}：业务观察时点，用于确定目标公司的状态、股东快照或事件区间；
-    \item \textbf{\texttt{knowledge\_cutoff}}：信息可得截止时点，用于限制该次研究允许使用的最晚公开信息。
-\end{itemize}
+FinTrace 通过 as\_of\_date 和 knowledge\_cutoff 两个时间维度解决这一问题。as\_of\_date 用于描述业务观察时点，即需要研究对象在什么时候的状态；knowledge\_cutoff 则用于描述知识可得截止时间，即在本次研究中允许系统使用到什么时候公开的信息。其核心字段如表~\ref{tab:dual_time_constraint} 所示。
 
-因此，系统中的“最新”表示在给定 \texttt{knowledge\_cutoff} 下已经披露的最新有效记录，而不是数据库中的全局最新数据。该约束用于降低 look-ahead bias，避免利用未来披露信息解释历史问题。
+两者并不是相同的概念。前者回答的是“研究对象在什么时候是什么状态”，后者回答的是“在这个研究环境中系统当时能够知道什么”。系统在形成有效 Evidence 时需要同时满足相应的时间约束，因此数据库中的最新数据并不天然意味着可以用于当前任务。对于历史研究任务，只有符合知识截止时间的信息才能进入当前研究证据范围。
+
+\begin{table}[htbp]
+  \centering
+  \caption{FinTrace 双时间约束}
+  \label{tab:dual_time_constraint}
+  \begin{tabular}{p{.18\textwidth}p{.27\textwidth}p{.45\textwidth}}
+    \toprule
+    时间参数 & 定义 & 主要作用 \\
+    \midrule
+    as\_of\_date & 业务观察时点 & 确定公司、股权、事件等研究对象在特定时点的状态 \\
+    knowledge\_cutoff & 信息可得截止时点 & 限制系统在研究过程中可以使用的公开信息范围 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+通过这一机制，FinTrace 将时间一致性从回答层面的文字说明转变为 Agent 执行过程中的约束条件。对于需要进行历史财务分析、股权关系分析或事件研究的问题，系统能够在既定的信息边界内组织调查和形成证据，从而降低未来信息进入历史研究过程的风险。
 
 \subsection{Evidence Review 与 Evidence-to-Claim}
 
-工具执行后，FinTrace 对当前证据进行 Post-Answerability 审查。Evidence Review 记录已经覆盖的研究方面与 Evidence Gap，并将证据状态划分为：
+在金融研究中，获得相关资料并不意味着已经具备形成结论的充分条件。一个复杂问题可能同时包含财务表现、股权结构和重大事件等多个方面，而一次工具调用通常只能覆盖其中的一部分。因此，FinTrace 在工具执行之后进一步进行 Evidence Review，对当前证据是否足以支撑用户请求进行判断。
 
-\begin{itemize}
-    \item \textbf{\texttt{sufficient}}：当前证据足以覆盖所需研究方面，可生成完整回答；
-    \item \textbf{\texttt{partial}}：部分方面已有证据，其余无法继续可靠补足，生成部分回答并说明限制；
-    \item \textbf{\texttt{insufficient}}：没有获得能够支持回答的有效证据，返回证据不足。
-\end{itemize}
+系统通过 Post-Answerability 对当前 Evidence 进行审查，并记录已经覆盖的研究方面以及仍然存在的 Evidence Gap。根据当前证据状态，系统将证据状态划分为：
 
-若 Evidence Gap 可由现有能力解决，复杂任务不会立即生成答案，而是返回 Investigation Loop 规划下一项动作。最终自然语言生成只允许使用工具结果、Evidence 和已记录限制，逻辑上要求
+sufficient：当前证据足以覆盖所需研究方面，可生成完整回答；
+
+partial：部分方面已有证据，其余无法继续可靠补足，生成部分回答并说明限制；
+
+insufficient：没有获得能够支持回答的有效证据，返回证据不足。
+
+当现有证据已经能够覆盖问题要求时，系统进入最终回答阶段；当只有部分内容获得充分证据时，则保留已经确认的部分并明确回答边界；当证据不足但现有工具能力仍然能够解决相应缺口时，系统不会立即生成答案，而是进入 Investigation Loop，根据当前 Evidence Gap 规划下一项调查动作，并继续调用相应工具补充证据。
+
+这一机制使复杂金融任务从一次性的“检索—生成”模式转变为持续的证据调查过程。Agent 每完成一轮工具调用，都会将新的结果转化为 Evidence 并重新进行审查。如果当前证据仍无法覆盖用户请求，系统继续根据 Evidence Gap 规划后续动作；只有当证据已经满足回答条件，或者剩余问题无法通过现有能力进一步解决时，才结束 Investigation Loop。由此，系统不会因为已经获得少量相关信息就过早生成完整结论，而是以证据覆盖程度作为结束调查的重要依据。
+
+更重要的是，FinTrace 对最终自然语言生成设置了明确的证据边界。最终回答只能使用已经产生的 Tool Result、Evidence 以及系统记录的限制条件进行组织和归纳，逻辑上要求：
+
 \[
-\mathrm{Claim}\subseteq \mathrm{Supported(Evidence\ Ledger)}.
+\mathrm{Claim}\subseteq\mathrm{Supported(Evidence\ Ledger)}.
 \]
-模型可以归纳多条证据，但不能凭参数知识补充金额、比例、时间、持股关系或事件细节。财务异常也只能描述为风险信号，除非存在额外证据支持更强结论。
+
+也就是说，最终回答中的事实性 Claim 必须能够在当前 Evidence Ledger 中找到相应的支持。模型可以对多条已有证据进行归纳、比较和综合，也可以将多个 Evidence 组织成更高层次的分析性表述，但不能利用自身参数知识补充 Evidence 中不存在的具体事实。对于金额、比例、时间、持股关系以及事件细节等金融信息，除非已经存在相应证据，否则模型不能自行补充或推断具体数值。
+
+这一约束尤其适用于金融异常和风险判断。系统允许根据已有财务指标或相关事实描述“存在风险信号”或“值得进一步关注的异常”，但不能仅凭单项指标异常直接生成更强的事实性结论。只有在 Evidence Ledger 中存在额外证据，并且这些证据能够共同支持更强结论时，模型才可以进一步提升结论强度。这样可以避免模型将“指标异常”直接扩大为已经确认的违规、造假或其他未经验证的事件。
+
+例如，当工具返回某项财务指标出现明显异常时，系统可以基于该 Evidence 表述为“该指标表现出异常特征，可能构成一定风险信号”；但如果当前 Evidence Ledger 中不存在进一步的审计结论、公告信息或其他独立证据，就不能直接将其表述为已经确认的财务造假。类似地，如果 Evidence 只记录某一主体持有公司一定比例股份，模型可以据此描述对应的持股事实，但不能在没有控制权、协议安排或其他证据的情况下自行扩展为“实际控制”关系。
+
+因此，Evidence Review 和 Evidence-to-Claim 实际上形成了从“是否继续调查”到“最终能够说什么”的两层约束。前者控制调查过程的终止条件，后者控制自然语言生成的事实边界，使 Agent 在面对复杂金融问题时既能够主动补充证据，又能够在证据不足时保持克制。
+
+这一机制最终使 FinTrace 的回答生成从传统的“模型知道什么就回答什么”转变为“Evidence Ledger 中有什么，系统才允许回答到什么程度”。模型的作用由直接提供事实转变为在既有证据范围内进行组织、归纳和表达，从而在保留大语言模型分析能力的同时，显著降低无依据事实补充和结论过度推断的风险。
 
 \subsection{结构化回答状态与拒答}
 
-FinTrace 将“不能回答”的原因进一步拆分为不同运行状态：
+可信回答并不意味着系统必须对所有问题给出完整答案。在实际金融研究中，用户可能没有提供必要的公司主体、时间范围或比较对象，也可能存在数据源缺失、证据不足或者工具执行失败等情况。如果系统在这些情况下仍然要求模型输出完整结论，就容易将推测包装成事实。
+
+FinTrace 因此将最终回答状态进行结构化处理。系统根据实际执行结果区分完整回答、部分回答、需要澄清、不支持、证据不足以及执行失败等情况，并通过不同的状态值反映当前任务的真实完成程度。
 
 \begin{table}[htbp]
-    \centering
-    \caption{主要回答状态及含义}
-    \label{tab:answer_status}
-    \begin{tabular}{p{0.28\textwidth}p{0.58\textwidth}}
-        \toprule
-        状态 & 含义 \\
-        \midrule
-        \texttt{answered} & 已获得充分证据并完成回答 \\
-        \texttt{partially\_answered} & 仅部分问题获得充分证据 \\
-        \texttt{clarification\_required} & 用户输入缺少必要主体、日期或比较条件 \\
-        \texttt{unsupported} & 当前系统不存在所需工具、数据源或权限 \\
-        \texttt{insufficient\_evidence} & 能力存在，但本次实际证据不足 \\
-        \texttt{failed} & 工具、模型、网络或程序执行失败 \\
-        \bottomrule
-    \end{tabular}
+  \centering
+  \caption{主要回答状态及含义}
+  \label{tab:answer_status}
+  \begin{tabular}{p{.23\textwidth}p{.67\textwidth}}
+    \toprule
+    状态 & 含义 \\
+    \midrule
+    answered & 已获得充分证据并完成回答 \\
+    partially\_answered & 仅部分问题获得充分证据 \\
+    clarification\_required & 用户输入缺少必要主体、日期或比较条件 \\
+    unsupported & 当前系统不存在所需工具、数据源或权限 \\
+    insufficient\_evidence & 能力存在，但本次实际证据不足 \\
+    failed & 工具、模型、网络或程序执行失败 \\
+    \bottomrule
+  \end{tabular}
 \end{table}
 
-这种区分避免将“用户条件不足”“能力不存在”“证据没找到”和“程序失败”混为同一种拒答，也为离线评测和失败归因提供了稳定标签。
+这种设计使“拒答”成为系统可信机制的一部分，而不是异常情况。当证据不足以支撑某项结论时，系统不会为了保持回答完整性而自行补充未知事实；当用户输入不足时，也不会擅自猜测主体或时间条件。对于已经获得部分证据的问题，则可以保留能够确认的内容，并明确尚未得到充分支持的部分。
+
+对于金融智能 Agent 而言，这种能力尤其重要。金融研究更加重视事实边界和证据质量，一个明确说明“当前证据不足”的结果，其可信程度往往高于一个信息完整但来源无法验证的答案。因此，FinTrace 将“知道什么”和“不知道什么”都纳入结构化回答状态，使系统能够对自身能力和当前证据边界进行明确表达。
 
 \subsection{执行 Trace 与全过程审计}
 
-每次运行记录 Parsed Request、Pre-Answerability、Routing Mode、Planner Action、工具结果、Evidence ID、Evidence Gap、动作修复、模型调用、Answer Status、Termination Reason、错误与延迟等信息。完整审计链为：
+如果说 Evidence 解决的是“回答依据什么”，那么 Trace 解决的就是“回答是如何产生的”。FinTrace 将一次 Agent 运行视为完整的研究过程，对从用户请求进入系统到最终回答生成的关键执行状态进行统一记录，使一次任务不再只留下最终文本，而是形成可以回溯和分析的完整运行轨迹。
 
-\begin{center}
-\texttt{Query}
-$\rightarrow$
-\texttt{Parsed Request}
-$\rightarrow$
-\texttt{Action}
-$\rightarrow$
-\texttt{Tool Result}
-$\rightarrow$
-\texttt{Evidence}
-$\rightarrow$
-\texttt{Review}
-$\rightarrow$
-\texttt{Final Answer}
-\end{center}
+在每次运行过程中，系统持续记录 Parsed Request、Pre-Answerability、Routing Mode、Planner Action、工具执行结果、Evidence ID、Evidence Gap、动作修复信息、模型调用信息、Answer Status、Termination Reason 以及错误和延迟等运行元数据。这些信息覆盖了请求理解、任务判断、Agent 路由、工具执行、证据形成、调查修复和最终回答等关键阶段，使一次金融研究任务能够被还原为结构化的执行记录。完整审计链可以表示为：
 
-因此，当最终结果出现问题时，可以进一步判断错误来自请求解析、Direct Gate/Planner 路由、工具数据、Evidence Gap 还是回答生成，而不是将所有失败笼统归因于“大模型幻觉”。同一 Trace 也可直接用于工具调用 Precision、自纠错成功率和证据覆盖率等评测。
+Query  $\rightarrow$  Parsed Request  $\rightarrow$  Action  $\rightarrow$  Tool Result  $\rightarrow$  Evidence  $\rightarrow$  Review  $\rightarrow$  Final Answer
+
+这一链路同时对应了 FinTrace 从问题理解到答案生成的核心执行过程。用户提出的问题首先经过结构化解析，系统判断当前任务是否具备直接回答的条件，并根据任务类型选择相应的 Routing Mode；对于需要进一步调查的问题，Planner 生成下一项 Action 并调用相应工具。工具产生的结果经过标准化后进入 Evidence Ledger，并在 Evidence Review 中判断是否已经满足回答要求。如果仍然存在 Evidence Gap，系统可以继续规划后续动作，直到证据达到回答条件或任务进入相应的终止状态。
+
+Trace 的价值不仅在于保存执行记录，更在于能够对问题进行分层定位。当最终结果出现异常时，系统可以沿着 Trace 检查问题究竟发生在请求解析、Direct Gate/Planner 路由、工具及其数据、Evidence Gap 处理，还是最终回答生成阶段，而不必将所有异常笼统归因于“大模型幻觉”。这种定位方式使 Agent 的错误分析从单纯的结果评价进一步转向执行链路级别的诊断。
+
+例如，当最终回答中的金融数据出现错误时，可以首先检查对应的 Evidence ID 和 Tool Result，判断错误是否已经存在于工具返回的数据中；如果工具结果正确，则可以进一步检查 Evidence 是否被正确记录以及 Evidence-to-Claim 是否建立了正确关联；如果证据本身没有问题，则可以继续检查最终回答是否超出了 Evidence Ledger 所支持的范围。类似地，如果系统没有完成任务，也可以通过 Termination Reason 和 Evidence Gap 判断是因为缺少必要输入、当前工具能力无法覆盖，还是调查过程中的执行异常。
+
+此外，同一套 Trace 数据还可以直接服务于系统评测。由于每一次工具调用、Evidence 形成、动作修复和最终回答状态均被结构化记录，因此 Trace 不仅能够回答“这次任务为什么得到这个结果”，还能够进一步统计 Agent 在大量任务上的运行表现。例如，可以基于工具调用记录评估工具调用 Precision，通过动作修复和任务最终状态分析自纠错成功率，通过 Evidence 与用户任务需求之间的覆盖关系计算证据覆盖率。这样，Trace 同时成为系统运行日志、问题诊断机制和评测数据基础。
+
+由此，FinTrace 将传统 Agent 中相对分散的日志、工具调用记录和模型运行信息统一纳入同一 Trace 体系，使每一次研究任务都能够形成从问题输入到最终回答的完整审计链。最终实现的不仅是“答案可追溯”，更是“答案形成过程可解释、执行问题可定位、系统能力可量化评估”。

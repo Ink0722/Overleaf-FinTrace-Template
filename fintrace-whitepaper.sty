@@ -6,6 +6,7 @@
 \RequirePackage{extramarks}
 \RequirePackage{sectsty}
 \RequirePackage{needspace}
+\RequirePackage{array}
 \RequirePackage[most]{tcolorbox}
 \RequirePackage{eso-pic}
 \definecolor{FinNavy}{HTML}{075F96}
@@ -21,6 +22,14 @@
 \definecolor{FinSoftOrange}{HTML}{D96F12}
 \colorlet{winered}{FinTeal}
 \hypersetup{linkcolor=FinNavy,urlcolor=FinTeal,citecolor=FinNavy}
+% Semantic emphasis: keep these accents short and purposeful.
+\newcommand{\fintracekey}[1]{{\bfseries\color{FinHeadingBlue}#1}}
+\newcommand{\fintracemetric}[1]{{\bfseries\color{FinTeal}#1}}
+\newcommand{\fintracecaution}[1]{{\bfseries\color{FinSoftOrange}#1}}
+% Center every floating table; individual tables retain booktabs rules.
+\AtBeginEnvironment{table}{\centering}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
 \sectionfont{\normalfont\bfseries\heiti\color{FinHeadingBlue}}
 \subsectionfont{\normalfont\kaishu\color{FinSubBlue}}
 \subsubsectionfont{\normalfont\fangsong\color{FinSubInk}}
