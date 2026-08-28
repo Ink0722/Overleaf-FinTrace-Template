@@ -13,16 +13,16 @@
   \centering
   \caption{FinTrace总体架构主要层次及职责}
   \label{tab:architecture_1}
-  \begin{tabular}{p{.23\textwidth}p{.67\textwidth}}
-    \toprule
-    架构层级 & 主要职责 \\
-    \midrule
+  \begin{tabular}{C{.23\textwidth}C{.67\textwidth}}
+    \fintracetoprule
+    \fintracetablehead{架构层级} & \fintracetablehead{主要职责} \\
+    \fintracemidrule
     交互接入层 & 通过CLI、FastAPI与Next.js Web前端接收用户请求，并展示回答、工具执行状态、Evidence与运行Trace \\
     Agent编排层 & 完成会话恢复、请求解析、可回答性判断、任务路由、动作校验、有界调查、证据审查和回答生成 \\
     专业工具层 & 提供财务分析、股权分析、事件时间线、研报观点分析及文档检索五类独立能力 \\
     数据与索引层 & 管理标准化金融数据、股东快照、公告事件、研报观点、Document、Chunk，以及SQLite、FAISS和FTS5/BM25等索引 \\
     可信控制层 & 通过Evidence Ledger、Knowledge Cutoff、Action Validation、Trace和Evaluation约束完整执行过程 \\
-    \bottomrule
+    \fintracebottomrule
   \end{tabular}
 \end{table}
 
@@ -42,15 +42,15 @@ FinTrace在接收到用户问题后并不立即调用大语言模型生成结论
   \centering
   \caption{Pre-Answerability状态及处理逻辑}
   \label{tab:architecture_2}
-  \begin{tabular}{p{.18\textwidth}p{.27\textwidth}p{.45\textwidth}}
-    \toprule
-    状态 & 判定含义 & 后续处理 \\
-    \midrule
+  \begin{tabular}{C{.18\textwidth}C{.27\textwidth}C{.45\textwidth}}
+    \fintracetoprule
+    \fintracetablehead{状态} & \fintracetablehead{判定含义} & \fintracetablehead{后续处理} \\
+    \fintracemidrule
     routeable & 系统具备相应能力，且执行所需关键参数完整 & 进入正常路由 \\
     routeable\_with\_gaps & 请求包含可执行内容，同时存在非阻断能力缺口 & 继续调查可支持部分，并在最终回答中披露未覆盖内容 \\
     clarification\_required & 主体、任务或比较对象等关键条件无法唯一确定 & 暂停工具调用并请求用户补充信息 \\
     unsupported & 当前系统不存在对应数据或工具能力 & 明确说明能力边界，不调用无关工具替代 \\
-    \bottomrule
+    \fintracebottomrule
   \end{tabular}
 \end{table}
 

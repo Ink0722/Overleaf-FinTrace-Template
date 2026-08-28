@@ -7,6 +7,7 @@
 \RequirePackage{sectsty}
 \RequirePackage{needspace}
 \RequirePackage{array}
+\RequirePackage{colortbl}
 \RequirePackage[most]{tcolorbox}
 \RequirePackage{eso-pic}
 \definecolor{FinNavy}{HTML}{075F96}
@@ -22,17 +23,67 @@
 \definecolor{FinSoftOrange}{HTML}{D96F12}
 \colorlet{winered}{FinTeal}
 \hypersetup{linkcolor=FinNavy,urlcolor=FinTeal,citecolor=FinNavy}
+% TeX Live ships the Fandol families used here, so these heading faces remain
+% reproducible under Overleaf's XeLaTeX compiler without system fonts.
+\newCJKfontfamily\fintracekaibold[AutoFakeBold=1.8]{FandolKai}
+\newCJKfontfamily\fintracefangbold[AutoFakeBold=1.5]{FandolFang}
 % Semantic emphasis: keep these accents short and purposeful.
 \newcommand{\fintracekey}[1]{{\bfseries\color{FinHeadingBlue}#1}}
 \newcommand{\fintracemetric}[1]{{\bfseries\color{FinTeal}#1}}
 \newcommand{\fintracecaution}[1]{{\bfseries\color{FinSoftOrange}#1}}
-% Center every floating table; individual tables retain booktabs rules.
-\AtBeginEnvironment{table}{\centering}
-\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
-\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+% Unified white-paper table system.
+\AtBeginEnvironment{table}{%
+  \centering
+  \renewcommand{\arraystretch}{1.18}%
+  \setlength{\heavyrulewidth}{1pt}%
+  \setlength{\lightrulewidth}{.55pt}%
+  \setlength{\cmidrulewidth}{.55pt}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}m{#1}}
+\newcolumntype{L}[1]{>{\centering\arraybackslash}m{#1}}
+\newcommand{\fintracetablehead}[1]{{\heiti\bfseries\color{FinNavy}#1}}
+\newcommand{\fintracetotal}[1]{{\bfseries#1}}
+\newcommand{\fintracestatuspass}[1]{{\Large\bfseries\color{FinTeal}$\checkmark$}}
+\newcommand{\fintracestatuswarn}[1]{{\Large\bfseries\color{FinOrange}$\times$}}
+\newcommand{\fintracestatuspending}[1]{{\bfseries\color{FinMuted}---}}
+\newcommand{\fintracetablebicolorrule}[2]{%
+  \noalign{\vskip\aboverulesep
+    \hbox to .94\hsize{%
+      \color{#1}\leaders\hrule height 1pt\hskip .7708\hsize
+      \color{#2}\leaders\hrule height 1pt\hfill}%
+    \vskip\belowrulesep}}
+\newcommand{\fintracetoprule}{%
+  \fintracetablebicolorrule{FinTeal!85!FinInk}{FinOrange}}
+\newcommand{\fintracemidrule}{%
+  \noalign{\vskip\aboverulesep
+    \hbox to .94\hsize{\color{FinTeal!55!white}%
+      \leaders\hrule height .55pt\hfill}%
+    \vskip\belowrulesep}}
+\newcommand{\fintracebottomrule}{%
+  \noalign{\vskip\aboverulesep
+    \hbox to .94\hsize{%
+      \color{FinOrange}\leaders\hrule height 1pt\hskip .1692\hsize
+      \color{FinTeal!85!FinInk}\leaders\hrule height 1pt\hfill}%
+    \vskip\belowrulesep}%
+  \arrayrulecolor{black}}
+\captionsetup[table]{%
+  font=small,
+  labelfont={bf,color=FinOrange},
+  textfont={bf,color=FinTeal!85!FinInk},
+  labelsep=quad,
+  justification=centering,
+  singlelinecheck=false,
+  skip=4pt}
+\captionsetup[figure]{%
+  font=small,
+  labelfont={bf,color=FinOrange},
+  textfont={bf,color=FinTeal!85!FinInk},
+  labelsep=quad,
+  justification=centering,
+  singlelinecheck=false,
+  skip=6pt}
 \sectionfont{\normalfont\bfseries\heiti\color{FinHeadingBlue}}
-\subsectionfont{\normalfont\kaishu\color{FinSubBlue}}
-\subsubsectionfont{\normalfont\fangsong\color{FinSubInk}}
+\subsectionfont{\normalfont\fintracekaibold\bfseries\color{FinSubBlue}}
+\subsubsectionfont{\normalfont\fintracefangbold\bfseries\color{FinSubInk}}
 \geometry{left=24mm,right=24mm,top=37mm,bottom=37mm,headheight=15.3mm,headsep=6mm,footskip=13mm}
 \newcommand{\fintracerulewidth}{.6pt}
 \newcommand{\fintraceheaderlogo}{%

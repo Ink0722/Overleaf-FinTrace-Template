@@ -27,17 +27,17 @@ Source  $\rightarrow$  Tool Result  $\rightarrow$  Evidence  $\rightarrow$  Evid
   \centering
   \caption{Evidence 核心字段}
   \label{tab:evidence_schema}
-  \begin{tabular}{p{.23\textwidth}p{.67\textwidth}}
-    \toprule
-    字段 & 含义 \\
-    \midrule
+  \begin{tabular}{C{.23\textwidth}C{.67\textwidth}}
+    \fintracetoprule
+    \fintracetablehead{字段} & \fintracetablehead{含义} \\
+    \fintracemidrule
     evidence\_id & 唯一证据标识，用于回答引用、日志与评测对齐 \\
     evidence\_type & 文档、财务事实、持股关系、事件等证据类型 \\
     source & Document、公司、页码/行号或数据路径等来源定位 \\
     fact & 工具提取、查询或确定性计算得到的结构化事实 \\
     support\_level & direct、derived 或 weak 支持强度 \\
     used\_by & 记录产生或使用该证据的工具动作 \\
-    \bottomrule
+    \fintracebottomrule
   \end{tabular}
 \end{table}
 
@@ -53,13 +53,13 @@ FinTrace 通过 as\_of\_date 和 knowledge\_cutoff 两个时间维度解决这�
   \centering
   \caption{FinTrace 双时间约束}
   \label{tab:dual_time_constraint}
-  \begin{tabular}{p{.18\textwidth}p{.27\textwidth}p{.45\textwidth}}
-    \toprule
-    时间参数 & 定义 & 主要作用 \\
-    \midrule
+  \begin{tabular}{C{.18\textwidth}C{.27\textwidth}C{.45\textwidth}}
+    \fintracetoprule
+    \fintracetablehead{时间参数} & \fintracetablehead{定义} & \fintracetablehead{主要作用} \\
+    \fintracemidrule
     as\_of\_date & 业务观察时点 & 确定公司、股权、事件等研究对象在特定时点的状态 \\
     knowledge\_cutoff & 信息可得截止时点 & 限制系统在研究过程中可以使用的公开信息范围 \\
-    \bottomrule
+    \fintracebottomrule
   \end{tabular}
 \end{table}
 
@@ -84,7 +84,8 @@ insufficient：没有获得能够支持回答的有效证据，返回证据不�
 更重要的是，FinTrace 对最终自然语言生成设置了明确的证据边界。最终回答只能使用已经产生的 Tool Result、Evidence 以及系统记录的限制条件进行组织和归纳，逻辑上要求：
 
 \[
-\mathrm{Claim}\subseteq\mathrm{Supported(Evidence\ Ledger)}.
+\mathrm{Claim}\subseteq
+\operatorname{Supported}\!\left(\text{Evidence Ledger}\right).
 \]
 
 也就是说，最终回答中的事实性 Claim 必须能够在当前 Evidence Ledger 中找到相应的支持。模型可以对多条已有证据进行归纳、比较和综合，也可以将多个 Evidence 组织成更高层次的分析性表述，但不能利用自身参数知识补充 Evidence 中不存在的具体事实。对于金额、比例、时间、持股关系以及事件细节等金融信息，除非已经存在相应证据，否则模型不能自行补充或推断具体数值。
@@ -107,17 +108,17 @@ FinTrace 因此将最终回答状态进行结构化处理。系统根据实际�
   \centering
   \caption{主要回答状态及含义}
   \label{tab:answer_status}
-  \begin{tabular}{p{.23\textwidth}p{.67\textwidth}}
-    \toprule
-    状态 & 含义 \\
-    \midrule
+  \begin{tabular}{C{.23\textwidth}C{.67\textwidth}}
+    \fintracetoprule
+    \fintracetablehead{状态} & \fintracetablehead{含义} \\
+    \fintracemidrule
     answered & 已获得充分证据并完成回答 \\
     partially\_answered & 仅部分问题获得充分证据 \\
     clarification\_required & 用户输入缺少必要主体、日期或比较条件 \\
     unsupported & 当前系统不存在所需工具、数据源或权限 \\
     insufficient\_evidence & 能力存在，但本次实际证据不足 \\
     failed & 工具、模型、网络或程序执行失败 \\
-    \bottomrule
+    \fintracebottomrule
   \end{tabular}
 \end{table}
 

@@ -11,10 +11,10 @@ FinTrace的工程实现以可运行、可复现和可扩展为核心原则。项
   \centering
   \caption{FinTrace 主要工程组件}
   \label{tab:engineering_stack}
-  \begin{tabular}{p{.23\textwidth}p{.67\textwidth}}
-    \toprule
-    组件 & 主要用途 \\
-    \midrule
+  \begin{tabular}{C{.23\textwidth}C{.67\textwidth}}
+    \fintracetoprule
+    \fintracetablehead{组件} & \fintracetablehead{主要用途} \\
+    \fintracemidrule
     LangGraph & Agent 状态流转、条件分支与有界调查控制 \\
     Pydantic & 请求、Action、ToolResult、Evidence 等数据契约定义 \\
     SQLite / FAISS / BM25 & 结构化查询、向量检索与关键词检索 \\
@@ -22,7 +22,7 @@ FinTrace的工程实现以可运行、可复现和可扩展为核心原则。项
     FastAPI / Uvicorn & 标准化 HTTP 服务接口 \\
     PyMuPDF / python-docx & 公告与报告等文档解析处理 \\
     Pytest & 工具单元测试、工作流验证与回归测试 \\
-    \bottomrule
+    \fintracebottomrule
   \end{tabular}
 \end{table}
 
